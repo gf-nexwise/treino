@@ -147,11 +147,45 @@ footer p{margin:0;max-width:340px;margin-inline:auto}
 .echk.on .en{color:var(--muted);text-decoration:line-through}
 .echk .ew{font-size:12.5px;color:var(--faint);margin-top:2px;line-height:1.4}
 .rule.disc p{margin:0;font-size:13px;color:var(--muted);line-height:1.55}
+
+/* ---- auth ---- */
+.authwrap{position:fixed;inset:0;z-index:100;display:none;align-items:center;justify-content:center;
+  background:var(--ink);padding:24px}
+.authwrap.on{display:flex}
+.authcard{width:100%;max-width:340px;background:var(--surface);border:1px solid var(--line);
+  border-radius:18px;padding:26px 22px}
+.authcard h1{font-family:var(--disp);font-weight:700;font-size:32px;letter-spacing:.5px;
+  text-transform:uppercase;margin:0 0 4px}
+.authcard p{margin:0 0 18px;font-size:13.5px;color:var(--muted)}
+.authcard input{display:block;width:100%;background:var(--ink);border:1px solid var(--line);
+  border-radius:11px;color:var(--txt);font-family:var(--body);font-size:15px;padding:13px 14px;margin-bottom:10px}
+.authcard input:focus{outline:none;border-color:var(--muted)}
+.authcard button{display:block;width:100%;font-family:var(--disp);font-weight:700;font-size:18px;
+  letter-spacing:.5px;text-transform:uppercase;color:var(--ink);background:var(--txt);border:0;
+  border-radius:12px;padding:14px;margin-top:6px;cursor:pointer}
+.authcard button:disabled{opacity:.5;cursor:default}
+.autherr{font-size:13px;color:var(--forca);margin-top:12px;min-height:18px;text-align:center}
+.logout{margin-left:auto;align-self:center;font-family:var(--disp);font-weight:600;font-size:13px;
+  letter-spacing:.5px;text-transform:uppercase;color:var(--muted);background:transparent;
+  border:1px solid var(--line);border-radius:9px;padding:6px 12px;cursor:pointer}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
+<div id="auth" class="authwrap">
+  <div class="authcard">
+    <h1>Treino</h1>
+    <p>Entre pra ver e salvar seu histórico.</p>
+    <form id="authForm" autocomplete="on">
+      <input id="authEmail" type="email" placeholder="e-mail" autocomplete="username" required>
+      <input id="authPass" type="password" placeholder="senha" autocomplete="current-password" required>
+      <button id="authBtn" type="submit">Entrar</button>
+    </form>
+    <div id="authErr" class="autherr"></div>
+  </div>
+</div>
 <header>
-  <div class="brand"><h1>Treino</h1><span>Powerbuilding · Força + Hipertrofia</span></div>
+  <div class="brand"><h1>Treino</h1><span>Powerbuilding · Força + Hipertrofia</span><button class="logout" id="logoutBtn" onclick="logout()" style="display:none">Sair</button></div>
   <nav id="nav"></nav>
 </header>
 <main>
@@ -228,11 +262,26 @@ const EXAMS=[
    ["pressao","Pressão arterial","mede sempre — a testo pode subir"]]}
 ];
 
+// ---- Supabase (auth + sync na nuvem) ----
+const SB_URL="https://vswzzcqqimdmvmvblgoq.supabase.co";
+const SB_KEY="sb_publishable__pyXmIa1L2ZiI50FQJipJQ_cmz68f-s";
+const sb=window.supabase?window.supabase.createClient(SB_URL,SB_KEY):null;
+let currentUser=null;
+
+// cache em memória, hidratado do banco no login: reads continuam síncronos, writes vão pra nuvem
+let cache={};
+function cacheGet(k,dflt){return (k in cache)?cache[k]:dflt}
+function cacheSet(k,v){
+  cache[k]=v;
+  if(!currentUser||!sb)return;
+  sb.from("app_kv").upsert({user_id:currentUser.id,k,v}).then(({error})=>{
+    if(error){console.error(error);toast("Falha ao salvar na nuvem")}
+  });
+}
 const store={
-  get(k){try{return JSON.parse(localStorage.getItem(k)||"[]")}catch(e){return _mem[k]||[]}},
-  set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){_mem[k]=v}}
+  get(k){const v=cacheGet(k,[]);return Array.isArray(v)?v:(v??[])},
+  set(k,v){cacheSet(k,v)}
 };
-let _mem={};
 
 function logKey(d,i){return "t:"+d+":"+i}
 function fmtDate(ts){const x=new Date(ts);return ("0"+x.getDate()).slice(-2)+"/"+("0"+(x.getMonth()+1)).slice(-2)}
@@ -403,8 +452,8 @@ function exportData(){
 const WGOAL=4000;
 function todayISO(){const d=new Date();return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2)}
 function wkey(){return "w:"+todayISO()}
-function waterGet(){try{return Number(localStorage.getItem(wkey())||0)}catch(e){return _mem[wkey()]||0}}
-function waterSet(v){try{localStorage.setItem(wkey(),v)}catch(e){_mem[wkey()]=v}}
+function waterGet(){return Number(cacheGet(wkey(),0))||0}
+function waterSet(v){cacheSet(wkey(),v)}
 function addWater(ml){waterSet(Math.max(0,waterGet()+ml));renderWater()}
 function renderWater(){
   const f=document.getElementById("wfill");if(!f)return;
@@ -412,8 +461,8 @@ function renderWater(){
   f.style.width=pct+"%";
   document.getElementById("wval").textContent=(v/1000).toFixed(2).replace(".",",")+" / "+(WGOAL/1000)+" L";
 }
-function examGet(){try{return JSON.parse(localStorage.getItem("exams")||"{}")}catch(e){return _mem.exams||{}}}
-function examSet(o){try{localStorage.setItem("exams",JSON.stringify(o))}catch(e){_mem.exams=o}}
+function examGet(){return cacheGet("exams",{})||{}}
+function examSet(o){cacheSet("exams",o)}
 function toggleExam(id,el){const o=examGet();o[id]=!o[id];examSet(o);el.classList.toggle("on",!!o[id])}
 function renderExams(){const o=examGet();EXAMS.forEach(g=>g.items.forEach(([id])=>{const el=document.getElementById("ex-"+id);if(el)el.classList.toggle("on",!!o[id])}))}
 
@@ -440,8 +489,62 @@ function todayBanner(){
   }
 }
 
-buildViews();
-show(todayBanner());
+// ---- auth flow ----
+let appBuilt=false;
+
+async function hydrate(){
+  cache={};
+  const {data,error}=await sb.from("app_kv").select("k,v").eq("user_id",currentUser.id);
+  if(error){console.error(error);toast("Erro ao carregar seus dados");return}
+  (data||[]).forEach(r=>cache[r.k]=r.v);
+  await migrateLocal();
+}
+async function migrateLocal(){
+  if(Object.keys(cache).length)return;                 // já tem dados na nuvem, não migra
+  const rows=[];
+  try{
+    for(let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i);
+      if(!k||!(k.startsWith("t:")||k.startsWith("w:")||k==="exams"))continue;
+      let v;try{v=JSON.parse(localStorage.getItem(k))}catch(e){v=localStorage.getItem(k)}
+      cache[k]=v;rows.push({user_id:currentUser.id,k,v});
+    }
+  }catch(e){}
+  if(!rows.length)return;
+  const {error}=await sb.from("app_kv").upsert(rows);
+  if(!error)toast("Histórico deste aparelho enviado pra sua conta ✓");
+}
+function showAuth(on){document.getElementById("auth").classList.toggle("on",on)}
+
+async function bootApp(){
+  await hydrate();
+  document.getElementById("logoutBtn").style.display="";
+  if(!appBuilt){buildViews();appBuilt=true}
+  show(todayBanner());
+  showAuth(false);
+}
+async function logout(){await sb.auth.signOut();location.reload()}
+
+document.getElementById("authForm").addEventListener("submit",async(e)=>{
+  e.preventDefault();
+  const btn=document.getElementById("authBtn"),err=document.getElementById("authErr");
+  if(!sb){err.textContent="Sem conexão com o servidor. Recarregue a página.";return}
+  const email=document.getElementById("authEmail").value.trim();
+  const pass=document.getElementById("authPass").value;
+  btn.disabled=true;btn.textContent="Entrando…";err.textContent="";
+  const {data,error}=await sb.auth.signInWithPassword({email,password:pass});
+  btn.disabled=false;btn.textContent="Entrar";
+  if(error){err.textContent="E-mail ou senha incorretos.";return}
+  currentUser=data.user;
+  await bootApp();
+});
+
+(async function init(){
+  if(!sb){showAuth(true);document.getElementById("authErr").textContent="Sem conexão com o servidor. Recarregue.";return}
+  const {data:{session}}=await sb.auth.getSession();
+  if(session){currentUser=session.user;await bootApp()}
+  else{showAuth(true)}
+})();
 </script>
 </body>
 </html>
