@@ -304,6 +304,7 @@ const EXAMS=[
 // ---- Supabase (auth + sync na nuvem) ----
 const SB_URL="https://vswzzcqqimdmvmvblgoq.supabase.co";
 const SB_KEY="sb_publishable__pyXmIa1L2ZiI50FQJipJQ_cmz68f-s";
+const SB_FN="hyper-task"; // slug da Edge Function no Supabase (o "coach" virou esse nome no deploy)
 const sb=window.supabase?window.supabase.createClient(SB_URL,SB_KEY):null;
 let currentUser=null;
 
@@ -553,7 +554,7 @@ async function aiAsk(task,context){
   const {data:{session}}=await sb.auth.getSession();
   let res;
   try{
-    res=await fetch(SB_URL+"/functions/v1/coach",{
+    res=await fetch(SB_URL+"/functions/v1/"+SB_FN,{
       method:"POST",
       headers:{"Authorization":"Bearer "+(session&&session.access_token||""),"apikey":SB_KEY,"Content-Type":"application/json"},
       body:JSON.stringify({task,context})
