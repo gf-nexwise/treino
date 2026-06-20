@@ -32,21 +32,3 @@ create policy "app_kv update own" on public.app_kv
 
 create policy "app_kv delete own" on public.app_kv
   for delete using (auth.uid() = user_id);
-
-
--- ===== IA: controle de uso diário por usuário =====
--- A Edge Function "coach" escreve aqui (service role, ignora RLS) pra limitar chamadas.
--- O usuário só consegue LER o próprio uso; ninguém zera o contador pelo app.
-
-create table if not exists public.ai_usage (
-  user_id uuid not null references auth.users(id) on delete cascade,
-  day     date not null,
-  count   int  not null default 0,
-  primary key (user_id, day)
-);
-
-alter table public.ai_usage enable row level security;
-
-drop policy if exists "ai_usage select own" on public.ai_usage;
-create policy "ai_usage select own" on public.ai_usage
-  for select using (auth.uid() = user_id);
