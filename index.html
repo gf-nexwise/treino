@@ -168,6 +168,20 @@ footer p{margin:0;max-width:340px;margin-inline:auto}
 .logout{margin-left:auto;align-self:center;font-family:var(--disp);font-weight:600;font-size:13px;
   letter-spacing:.5px;text-transform:uppercase;color:var(--muted);background:transparent;
   border:1px solid var(--line);border-radius:9px;padding:6px 12px;cursor:pointer}
+
+/* ---- IA (coach) ---- */
+.aibtn{font-family:var(--disp);font-weight:700;font-size:14px;letter-spacing:.5px;text-transform:uppercase;
+  color:var(--hiper);background:var(--hiper-dim);border:1px solid rgba(61,169,252,.25);border-radius:10px;
+  padding:9px 14px;margin-top:12px;cursor:pointer}
+.aibtn:disabled{opacity:.55;cursor:default}
+.aibrief{display:inline-block;margin:0 0 16px}
+.airesp{display:none;white-space:pre-wrap;font-size:13.5px;line-height:1.55;color:var(--txt);
+  background:var(--ink);border:1px solid var(--line);border-radius:11px;padding:13px 14px;margin-top:10px}
+.airesp.on{display:block}
+.exval{margin-top:7px;width:100%;max-width:240px;background:var(--ink);border:1px solid var(--line);
+  border-radius:8px;color:var(--txt);font-family:var(--body);font-size:13px;padding:8px 10px}
+.exval:focus{outline:none;border-color:var(--muted)}
+.exval::placeholder{color:var(--faint)}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -317,7 +331,9 @@ function buildViews(){
   PLAN.forEach(p=>{
     const v=document.createElement("div");v.className="view";v.id="v-"+p.id;
     let h=`<div class="dhead"><h2>${p.day}</h2><span class="sub">${p.sub}</span></div>
-           <div class="accentbar" style="background:${p.accent}"></div>`;
+           <div class="accentbar" style="background:${p.accent}"></div>
+           <button class="aibtn aibrief" onclick="dayBriefing('${p.id}',this)">🤖 Briefing do dia</button>
+           <div class="airesp" id="brief-${p.id}"></div>`;
     p.ex.forEach((e,i)=>{
       const[name,sr,rest,type,note]=e;
       const n=setsCount(sr);
@@ -334,6 +350,8 @@ function buildViews(){
           <div class="sets">${boxes}</div>
           <div class="hist" id="hist-${p.id}-${i}">${renderHist(p.id,i)}</div>
           <div class="meta">Carga × reps por série. Bateu a meta em todas → sobe.</div>
+          <button class="aibtn" onclick="exerciseCoach('${p.id}',${i},this)">🤖 Coach</button>
+          <div class="airesp" id="ai-${p.id}-${i}"></div>
         </div>
       </div>`;
     });
@@ -386,11 +404,14 @@ function buildViews(){
     g.items.forEach(([id,name,why])=>{
       sh+=`<div class="echk" id="ex-${id}" onclick="toggleExam('${id}',this)">
         <div class="ck"></div>
-        <div class="ei"><div class="en">${name}</div><div class="ew">${why}</div></div>
+        <div class="ei"><div class="en">${name}</div><div class="ew">${why}</div>
+          <input class="exval" id="exval-${id}" placeholder="seu valor (ex: 720 ng/dL)" onclick="event.stopPropagation()" oninput="saveExVal('${id}',this.value)"></div>
       </div>`;
     });
   });
-  sh+=`</div>
+  sh+=`<button class="aibtn" onclick="interpretExams(this)">🤖 Interpretar meus exames</button>
+      <div class="airesp" id="ai-exams"></div>
+    </div>
     <div class="rule"><h3>Quando fazer</h3><dl>
       <dt>Base</dt><dd>Um exame agora, pra ter o ponto de partida.</dd>
       <dt>Ajuste</dt><dd>Repete ~6-8 semanas depois de começar ou mudar a dose.</dd>
@@ -398,7 +419,7 @@ function buildViews(){
     </dl></div>
     <div class="rule disc"><p>Isso é um checklist geral de acompanhamento, não diagnóstico. Os valores mudam de laboratório pra laboratório — leva os resultados pra um médico, de preferência endocrinologista, interpretar. Acompanhamento médico é o caminho mais seguro pra correr tranquilo por muito tempo.</p></div>`;
   sv.innerHTML=sh;views.appendChild(sv);
-  renderWater();renderExams();
+  renderWater();renderExams();renderExVals();
 }
 
 function toggle(row){row.closest(".ex").classList.toggle("open")}
@@ -487,6 +508,55 @@ function todayBanner(){
       <p>Hoje é dia de descanso. Recupera bem — é aí que cresce.</p>`;
     return "seg";
   }
+}
+
+// ---- IA (coach via Edge Function) ----
+async function aiAsk(task,context){
+  if(!sb||!currentUser)throw new Error("Faça login primeiro.");
+  const {data:{session}}=await sb.auth.getSession();
+  const res=await fetch(SB_URL+"/functions/v1/coach",{
+    method:"POST",
+    headers:{"Authorization":"Bearer "+(session&&session.access_token||""),"apikey":SB_KEY,"Content-Type":"application/json"},
+    body:JSON.stringify({task,context})
+  });
+  let data;try{data=await res.json()}catch(e){throw new Error("Resposta inválida do servidor de IA")}
+  if(!res.ok)throw new Error(data.error||("Erro "+res.status));
+  return data.text;
+}
+function aiRun(boxId,btn,task,context){
+  const box=document.getElementById(boxId);
+  const old=btn.textContent;btn.disabled=true;btn.textContent="Pensando…";
+  box.classList.add("on");box.textContent="…";
+  aiAsk(task,context).then(t=>{box.textContent=t})
+    .catch(e=>{box.textContent="⚠️ "+e.message})
+    .finally(()=>{btn.disabled=false;btn.textContent=old});
+}
+function exerciseCoach(d,i,btn){
+  const p=PLAN.find(x=>x.id===d);const e=p.ex[i];const forca=e[3]==="F";
+  const ctx={
+    exercicio:e[0],esquema:e[1],tipo:forca?"força":"hipertrofia",
+    regra:forca
+      ?"Força: fechou todas as séries no topo → sobe (+2,5kg superior / +5kg inferior). Não fechou 2x seguidas → repete a carga; de novo → deload -10%."
+      :"Hipertrofia (dupla progressão 8-15 reps): começa no piso da faixa, soma reps toda semana até bater o topo em todas as séries, aí sobe a carga e volta pro piso.",
+    historico:store.get(logKey(d,i)).slice(-6).map(s=>({data:fmtDate(s.t),series:s.sets||[]}))
+  };
+  aiRun("ai-"+d+"-"+i,btn,"progressao",ctx);
+}
+function dayBriefing(d,btn){
+  const p=PLAN.find(x=>x.id===d);
+  const ex=p.ex.map((e,i)=>({exercicio:e[0],esquema:e[1],tipo:e[3]==="F"?"força":"hipertrofia",ultima:((store.get(logKey(d,i)).slice(-1)[0])||{}).sets||[]}));
+  aiRun("brief-"+d,btn,"resumo",{treino:p.day,foco:p.sub,exercicios:ex});
+}
+function saveExVal(id,val){cacheSet("exval:"+id,val)}
+function renderExVals(){EXAMS.forEach(g=>g.items.forEach(([id])=>{const el=document.getElementById("exval-"+id);if(el)el.value=cacheGet("exval:"+id,"")||""}))}
+function interpretExams(btn){
+  const labs=[];
+  EXAMS.forEach(g=>g.items.forEach(([id,name,why])=>{
+    const v=(cacheGet("exval:"+id,"")||"").trim();
+    if(v)labs.push({exame:name,valor:v,sobre:why});
+  }));
+  if(!labs.length){toast("Preencha o valor de pelo menos um exame primeiro.");return}
+  aiRun("ai-exams",btn,"exames",{exames:labs});
 }
 
 // ---- auth flow ----
