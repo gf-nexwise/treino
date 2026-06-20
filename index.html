@@ -175,7 +175,7 @@ footer p{margin:0;max-width:340px;margin-inline:auto}
   padding:9px 14px;margin-top:12px;cursor:pointer}
 .aibtn:disabled{opacity:.55;cursor:default}
 .aibrief{display:inline-block;margin:0 0 16px}
-.airesp{display:none;white-space:pre-wrap;font-size:13.5px;line-height:1.55;color:var(--txt);
+.airesp{display:none;font-size:13.5px;line-height:1.58;color:var(--txt);
   background:var(--ink);border:1px solid var(--line);border-radius:11px;padding:13px 14px;margin-top:10px}
 .airesp.on{display:block}
 .exval{margin-top:7px;width:100%;max-width:240px;background:var(--ink);border:1px solid var(--line);
@@ -188,25 +188,37 @@ footer p{margin:0;max-width:340px;margin-inline:auto}
   border:1px solid var(--line);border-radius:18px;padding:15px 16px 14px;margin:0 0 18px;
   box-shadow:0 12px 34px rgba(0,0,0,.4)}
 .coach-head{display:flex;align-items:center;gap:11px;margin-bottom:11px}
-.coach-av{width:36px;height:36px;flex:0 0 auto;border-radius:50%;display:flex;align-items:center;
-  justify-content:center;font-size:19px;background:var(--hiper-dim);border:1px solid rgba(61,169,252,.3)}
+.coach-av{width:38px;height:38px;flex:0 0 auto;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;color:#d6dcea;background:var(--hiper-dim);border:1px solid rgba(61,169,252,.3)}
+.coach-av svg{width:26px;height:26px;display:block}
 .coach-title{font-family:var(--disp);font-weight:700;font-size:16px;letter-spacing:.5px;
   text-transform:uppercase;color:var(--txt);line-height:1.1}
 .coach-sub{font-size:11.5px;color:var(--muted);font-weight:500}
 .coach-refresh{margin-left:auto;flex:0 0 auto;background:transparent;border:1px solid var(--line);
   color:var(--muted);width:32px;height:32px;border-radius:10px;cursor:pointer;font-size:15px;line-height:1}
-.coach-body{white-space:pre-wrap;font-size:14px;line-height:1.6;color:var(--txt)}
+.coach-body{font-size:14.5px;line-height:1.62;color:var(--txt);letter-spacing:.1px}
 .coach-hint{color:var(--faint);font-size:13px}
-.excoach{display:flex;gap:9px;margin-top:13px;padding:11px 12px;background:var(--ink);
-  border:1px solid var(--line);border-left:3px solid var(--hiper);border-radius:11px}
-.excoach .av{flex:0 0 auto;font-size:15px;line-height:1.4}
-.excoach .msg{white-space:pre-wrap;font-size:13px;line-height:1.55;color:var(--txt)}
+.excoach{display:flex;gap:10px;margin-top:13px;padding:12px 13px;background:var(--ink);
+  border:1px solid var(--line);border-left:3px solid var(--hiper);border-radius:12px}
+.excoach .av{flex:0 0 auto;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;color:#aeb6c6;background:var(--hiper-dim)}
+.excoach .av svg{width:19px;height:19px;display:block}
+.excoach .msg{font-size:13.5px;line-height:1.58;color:var(--txt)}
+/* tipografia das respostas da IA */
+.coach-body p,.excoach .msg p,.airesp p{margin:0 0 8px}
+.coach-body p:last-child,.excoach .msg p:last-child,.airesp p:last-child{margin-bottom:0}
+.coach-body ul,.excoach .msg ul,.airesp ul{margin:6px 0 8px;padding-left:18px}
+.coach-body li,.excoach .msg li,.airesp li{margin:0 0 4px}
+.coach-body strong,.excoach .msg strong,.airesp strong{color:#fff;font-weight:700}
+.coach-body.streaming::after,.excoach .msg.streaming::after,.airesp.streaming::after{
+  content:"▋";color:var(--hiper);margin-left:2px;animation:cursorblink 1s steps(1) infinite}
+@keyframes cursorblink{50%{opacity:0}}
 .typing{display:inline-flex;gap:5px;align-items:center;padding:3px 0}
 .typing i{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:blink 1.2s infinite}
 .typing i:nth-child(2){animation-delay:.2s}
 .typing i:nth-child(3){animation-delay:.4s}
 @keyframes blink{0%,80%,100%{opacity:.3;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
-@media (prefers-reduced-motion:reduce){.typing i{animation:none}}
+@media (prefers-reduced-motion:reduce){.typing i,.coach-body.streaming::after,.excoach .msg.streaming::after,.airesp.streaming::after{animation:none}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -360,7 +372,7 @@ function buildViews(){
            <div class="accentbar" style="background:${p.accent}"></div>
            <div class="coach">
              <div class="coach-head">
-               <div class="coach-av">🤖</div>
+               <div class="coach-av">${BOT}</div>
                <div><div class="coach-title">Seu coach</div><div class="coach-sub">briefing de hoje</div></div>
                <button class="coach-refresh" onclick="refreshDay('${p.id}')" title="Atualizar">↻</button>
              </div>
@@ -382,7 +394,7 @@ function buildViews(){
           <div class="sets">${boxes}</div>
           <div class="hist" id="hist-${p.id}-${i}">${renderHist(p.id,i)}</div>
           <div class="meta">Carga × reps por série. Bateu a meta em todas → sobe.</div>
-          <div class="excoach"><span class="av">🤖</span><div class="msg" id="ai-${p.id}-${i}"><span class="coach-hint">Vendo seu histórico…</span></div></div>
+          <div class="excoach"><span class="av">${BOT}</span><div class="msg" id="ai-${p.id}-${i}"><span class="coach-hint">Vendo seu histórico…</span></div></div>
         </div>
       </div>`;
     });
@@ -547,9 +559,30 @@ function todayBanner(){
   }
 }
 
-// ---- IA (coach via Edge Function) ----
+// ---- IA (coach via Edge Function, com streaming) ----
 const aiCache={},aiInFlight={};
-async function aiAsk(task,context){
+// ícone do coach: robô "marombeiro"
+const BOT='<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><line x1="32" y1="5" x2="32" y2="12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><circle cx="32" cy="4" r="2.6" fill="#3DA9FC"/><path d="M10 59c1-12 9-18 22-18s21 6 22 18l.3 3H9.7z" fill="currentColor"/><line x1="32" y1="44" x2="32" y2="62" stroke="#0e1117" stroke-width="2"/><rect x="11" y="22" width="4.5" height="10" rx="2.2" fill="currentColor"/><rect x="48.5" y="22" width="4.5" height="10" rx="2.2" fill="currentColor"/><rect x="16" y="12" width="32" height="28" rx="9" fill="currentColor"/><rect x="20" y="18" width="24" height="16" rx="6" fill="#0e1117"/><circle cx="27" cy="24" r="3.3" fill="#3DA9FC"/><circle cx="37" cy="24" r="3.3" fill="#3DA9FC"/><rect x="25" y="29.5" width="14" height="3" rx="1.5" fill="#27406b"/></svg>';
+// formata a resposta com segurança (escapa HTML, aplica markdown leve)
+function fmtAI(t){
+  const esc=s=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  let html="",inList=false;
+  const closeList=()=>{if(inList){html+="</ul>";inList=false}};
+  (t||"").split(/\r?\n/).forEach(raw=>{
+    const line=esc(raw).replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>");
+    const head=line.match(/^\s*#{1,6}\s+(.*)$/);
+    const bul=line.match(/^\s*[-•]\s+(.*)$/);
+    if(head){closeList();html+="<p><strong>"+head[1]+"</strong></p>";return}
+    if(bul){if(!inList){html+="<ul>";inList=true}html+="<li>"+bul[1]+"</li>";return}
+    closeList();
+    if(line.trim()==="")return;
+    html+="<p>"+line+"</p>";
+  });
+  closeList();
+  return html||"<p></p>";
+}
+// chama a função e transmite a resposta token a token via onDelta(textoAcumulado)
+async function aiStream(task,context,onDelta){
   if(!sb||!currentUser)throw new Error("Faça login primeiro.");
   const {data:{session}}=await sb.auth.getSession();
   let res;
@@ -559,30 +592,39 @@ async function aiAsk(task,context){
       headers:{"Authorization":"Bearer "+(session&&session.access_token||""),"apikey":SB_KEY,"Content-Type":"application/json"},
       body:JSON.stringify({task,context})
     });
-  }catch(e){throw new Error("Coach offline — a função 'coach' ainda não foi publicada no Supabase.")}
-  let data;try{data=await res.json()}catch(e){throw new Error("Resposta inválida do servidor de IA")}
-  if(!res.ok)throw new Error(data.error||("Erro "+res.status));
-  return data.text;
+  }catch(e){throw new Error("Coach offline — a função ainda não foi publicada no Supabase.")}
+  if(!res.ok){let msg;try{msg=(await res.json()).error}catch(_){msg="Erro "+res.status}throw new Error(msg||("Erro "+res.status))}
+  if(!res.body){const txt=await res.text();onDelta&&onDelta(txt);return txt}
+  const reader=res.body.getReader(),dec=new TextDecoder();let full="";
+  while(true){
+    const {done,value}=await reader.read();
+    if(done)break;
+    full+=dec.decode(value,{stream:true});
+    onDelta&&onDelta(full);
+  }
+  return full;
 }
 // botão clássico (interpretar exames)
 function aiRun(boxId,btn,task,context){
   const box=document.getElementById(boxId);
   const old=btn.textContent;btn.disabled=true;btn.textContent="Pensando…";
-  box.classList.add("on");box.innerHTML='<span class="typing"><i></i><i></i><i></i></span>';
-  aiAsk(task,context).then(t=>{box.textContent=t})
-    .catch(e=>{box.textContent="⚠️ "+e.message})
-    .finally(()=>{btn.disabled=false;btn.textContent=old});
+  box.classList.add("on","streaming");box.innerHTML='<span class="typing"><i></i><i></i><i></i></span>';
+  aiStream(task,context,full=>{box.innerHTML=fmtAI(full)})
+    .catch(e=>{box.innerHTML="<p>⚠️ "+e.message+"</p>"})
+    .finally(()=>{box.classList.remove("streaming");btn.disabled=false;btn.textContent=old});
 }
 // proativo: preenche sozinho, com cache por sessão e sem disparo duplicado
 function coachFill(bodyId,cacheKey,task,context){
   const body=document.getElementById(bodyId);if(!body)return;
-  if(aiCache[cacheKey]!==undefined){body.textContent=aiCache[cacheKey];return}
+  if(aiCache[cacheKey]!==undefined){body.innerHTML=fmtAI(aiCache[cacheKey]);return}
   if(aiInFlight[cacheKey])return;
   aiInFlight[cacheKey]=1;
-  body.innerHTML='<span class="typing"><i></i><i></i><i></i></span>';
-  aiAsk(task,context).then(t=>{aiCache[cacheKey]=t;body.textContent=t})
-    .catch(e=>{body.textContent="⚠️ "+e.message})
-    .finally(()=>{delete aiInFlight[cacheKey]});
+  body.classList.add("streaming");body.innerHTML='<span class="typing"><i></i><i></i><i></i></span>';
+  let acc="";
+  aiStream(task,context,full=>{acc=full;body.innerHTML=fmtAI(full)})
+    .then(()=>{aiCache[cacheKey]=acc})
+    .catch(e=>{body.innerHTML="<p>⚠️ "+e.message+"</p>"})
+    .finally(()=>{body.classList.remove("streaming");delete aiInFlight[cacheKey]});
 }
 function dayContext(d){
   const p=PLAN.find(x=>x.id===d);

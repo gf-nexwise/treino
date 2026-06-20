@@ -81,32 +81,66 @@ Deno.serve(async (req) => {
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
     if (!openaiKey) return json({ error: "OPENAI_API_KEY não configurada no servidor." }, 500);
 
-    // 4. chama a OpenAI
+    // 4. chama a OpenAI em modo streaming
     const oai = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: MODEL,
+        stream: true,
         messages: [
           { role: "system", content: sys },
           { role: "user", content: JSON.stringify(body?.context ?? {}) },
         ],
       }),
     });
-    if (!oai.ok) {
-      const detail = (await oai.text()).slice(0, 300);
+    if (!oai.ok || !oai.body) {
+      const detail = (await oai.text().catch(() => "")).slice(0, 300);
       return json({ error: "Erro na OpenAI", detail }, 502);
     }
-    const out = await oai.json();
-    const text = out?.choices?.[0]?.message?.content ?? "(sem resposta)";
 
-    // 5. incrementa o uso
+    // 5. conta o uso antes de começar a transmitir
     await admin.from("ai_usage").upsert(
       { user_id: user.id, day, count: used + 1 },
       { onConflict: "user_id,day" },
     );
 
-    return json({ text });
+    // 6. transforma o SSE da OpenAI num fluxo de texto puro pro app
+    const enc = new TextEncoder();
+    const dec = new TextDecoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        const reader = oai.body!.getReader();
+        let buf = "";
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += dec.decode(value, { stream: true });
+            const lines = buf.split("\n");
+            buf = lines.pop() ?? "";
+            for (const line of lines) {
+              const t = line.trim();
+              if (!t.startsWith("data:")) continue;
+              const payload = t.slice(5).trim();
+              if (payload === "[DONE]") { controller.close(); return; }
+              try {
+                const piece = JSON.parse(payload)?.choices?.[0]?.delta?.content;
+                if (piece) controller.enqueue(enc.encode(piece));
+              } catch (_) { /* fragmento parcial entre chunks, ignora */ }
+            }
+          }
+        } catch (e) {
+          controller.error(e);
+          return;
+        }
+        controller.close();
+      },
+    });
+
+    return new Response(stream, {
+      headers: { ...cors, "Content-Type": "text/plain; charset=utf-8" },
+    });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }
