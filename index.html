@@ -182,6 +182,31 @@ footer p{margin:0;max-width:340px;margin-inline:auto}
   border-radius:8px;color:var(--txt);font-family:var(--body);font-size:13px;padding:8px 10px}
 .exval:focus{outline:none;border-color:var(--muted)}
 .exval::placeholder{color:var(--faint)}
+
+/* ---- coach proativo ---- */
+.coach{position:relative;background:linear-gradient(180deg,var(--surface2),var(--surface));
+  border:1px solid var(--line);border-radius:18px;padding:15px 16px 14px;margin:0 0 18px;
+  box-shadow:0 12px 34px rgba(0,0,0,.4)}
+.coach-head{display:flex;align-items:center;gap:11px;margin-bottom:11px}
+.coach-av{width:36px;height:36px;flex:0 0 auto;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-size:19px;background:var(--hiper-dim);border:1px solid rgba(61,169,252,.3)}
+.coach-title{font-family:var(--disp);font-weight:700;font-size:16px;letter-spacing:.5px;
+  text-transform:uppercase;color:var(--txt);line-height:1.1}
+.coach-sub{font-size:11.5px;color:var(--muted);font-weight:500}
+.coach-refresh{margin-left:auto;flex:0 0 auto;background:transparent;border:1px solid var(--line);
+  color:var(--muted);width:32px;height:32px;border-radius:10px;cursor:pointer;font-size:15px;line-height:1}
+.coach-body{white-space:pre-wrap;font-size:14px;line-height:1.6;color:var(--txt)}
+.coach-hint{color:var(--faint);font-size:13px}
+.excoach{display:flex;gap:9px;margin-top:13px;padding:11px 12px;background:var(--ink);
+  border:1px solid var(--line);border-left:3px solid var(--hiper);border-radius:11px}
+.excoach .av{flex:0 0 auto;font-size:15px;line-height:1.4}
+.excoach .msg{white-space:pre-wrap;font-size:13px;line-height:1.55;color:var(--txt)}
+.typing{display:inline-flex;gap:5px;align-items:center;padding:3px 0}
+.typing i{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:blink 1.2s infinite}
+.typing i:nth-child(2){animation-delay:.2s}
+.typing i:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,80%,100%{opacity:.3;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
+@media (prefers-reduced-motion:reduce){.typing i{animation:none}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -332,8 +357,14 @@ function buildViews(){
     const v=document.createElement("div");v.className="view";v.id="v-"+p.id;
     let h=`<div class="dhead"><h2>${p.day}</h2><span class="sub">${p.sub}</span></div>
            <div class="accentbar" style="background:${p.accent}"></div>
-           <button class="aibtn aibrief" onclick="dayBriefing('${p.id}',this)">🤖 Briefing do dia</button>
-           <div class="airesp" id="brief-${p.id}"></div>`;
+           <div class="coach">
+             <div class="coach-head">
+               <div class="coach-av">🤖</div>
+               <div><div class="coach-title">Seu coach</div><div class="coach-sub">briefing de hoje</div></div>
+               <button class="coach-refresh" onclick="refreshDay('${p.id}')" title="Atualizar">↻</button>
+             </div>
+             <div class="coach-body" id="coach-body-${p.id}"><span class="coach-hint">Preparando seu treino…</span></div>
+           </div>`;
     p.ex.forEach((e,i)=>{
       const[name,sr,rest,type,note]=e;
       const n=setsCount(sr);
@@ -350,8 +381,7 @@ function buildViews(){
           <div class="sets">${boxes}</div>
           <div class="hist" id="hist-${p.id}-${i}">${renderHist(p.id,i)}</div>
           <div class="meta">Carga × reps por série. Bateu a meta em todas → sobe.</div>
-          <button class="aibtn" onclick="exerciseCoach('${p.id}',${i},this)">🤖 Coach</button>
-          <div class="airesp" id="ai-${p.id}-${i}"></div>
+          <div class="excoach"><span class="av">🤖</span><div class="msg" id="ai-${p.id}-${i}"><span class="coach-hint">Vendo seu histórico…</span></div></div>
         </div>
       </div>`;
     });
@@ -428,7 +458,11 @@ function buildViews(){
   renderWater();renderExams();renderExVals();
 }
 
-function toggle(row){row.closest(".ex").classList.toggle("open")}
+function toggle(row){
+  const ex=row.closest(".ex");const willOpen=!ex.classList.contains("open");
+  ex.classList.toggle("open");
+  if(willOpen)maybeExCoach(ex);
+}
 
 function toast(msg){
   let t=document.getElementById("toast");
@@ -453,6 +487,7 @@ function saveDay(d){
   if(cval){const arr=store.get(logKey(d,"c"));arr.push({t:ts,sets:[cval]});store.set(logKey(d,"c"),arr);cel.value="";document.getElementById("hist-"+d+"-c").innerHTML=renderHist(d,"c");saved++;}
   if(!saved){toast("Preencha pelo menos uma série antes de salvar.");return;}
   toast("Treino de "+p.label+" salvo ✓");
+  delete aiCache["resumo:"+d];p.ex.forEach((e,i)=>{delete aiCache["prog:"+d+":"+i]});
   document.querySelectorAll("#v-"+d+" .ex.open").forEach(x=>x.classList.remove("open"));
   const idx=PLAN.findIndex(x=>x.id===d);const nx=PLAN[(idx+1)%PLAN.length];
   setTimeout(()=>show(nx.id),700);
@@ -497,6 +532,7 @@ function show(id){
   document.querySelectorAll(".view").forEach(v=>v.classList.toggle("on",v.id==="v-"+id));
   document.querySelectorAll(".chip").forEach(c=>c.classList.toggle("on",c.dataset.tab===id));
   window.scrollTo({top:0,behavior:"smooth"});
+  maybeCoach(id);
 }
 
 function todayBanner(){
@@ -517,28 +553,56 @@ function todayBanner(){
 }
 
 // ---- IA (coach via Edge Function) ----
+const aiCache={},aiInFlight={};
 async function aiAsk(task,context){
   if(!sb||!currentUser)throw new Error("Faça login primeiro.");
   const {data:{session}}=await sb.auth.getSession();
-  const res=await fetch(SB_URL+"/functions/v1/coach",{
-    method:"POST",
-    headers:{"Authorization":"Bearer "+(session&&session.access_token||""),"apikey":SB_KEY,"Content-Type":"application/json"},
-    body:JSON.stringify({task,context})
-  });
+  let res;
+  try{
+    res=await fetch(SB_URL+"/functions/v1/coach",{
+      method:"POST",
+      headers:{"Authorization":"Bearer "+(session&&session.access_token||""),"apikey":SB_KEY,"Content-Type":"application/json"},
+      body:JSON.stringify({task,context})
+    });
+  }catch(e){throw new Error("Coach offline — a função 'coach' ainda não foi publicada no Supabase.")}
   let data;try{data=await res.json()}catch(e){throw new Error("Resposta inválida do servidor de IA")}
   if(!res.ok)throw new Error(data.error||("Erro "+res.status));
   return data.text;
 }
+// botão clássico (suplementos / exames)
 function aiRun(boxId,btn,task,context){
   const box=document.getElementById(boxId);
   const old=btn.textContent;btn.disabled=true;btn.textContent="Pensando…";
-  box.classList.add("on");box.textContent="…";
+  box.classList.add("on");box.innerHTML='<span class="typing"><i></i><i></i><i></i></span>';
   aiAsk(task,context).then(t=>{box.textContent=t})
     .catch(e=>{box.textContent="⚠️ "+e.message})
     .finally(()=>{btn.disabled=false;btn.textContent=old});
 }
-function exerciseCoach(d,i,btn){
-  const p=PLAN.find(x=>x.id===d);const e=p.ex[i];const forca=e[3]==="F";
+// proativo: preenche sozinho, com cache por sessão e sem disparo duplicado
+function coachFill(bodyId,cacheKey,task,context){
+  const body=document.getElementById(bodyId);if(!body)return;
+  if(aiCache[cacheKey]!==undefined){body.textContent=aiCache[cacheKey];return}
+  if(aiInFlight[cacheKey])return;
+  aiInFlight[cacheKey]=1;
+  body.innerHTML='<span class="typing"><i></i><i></i><i></i></span>';
+  aiAsk(task,context).then(t=>{aiCache[cacheKey]=t;body.textContent=t})
+    .catch(e=>{body.textContent="⚠️ "+e.message})
+    .finally(()=>{delete aiInFlight[cacheKey]});
+}
+function dayContext(d){
+  const p=PLAN.find(x=>x.id===d);
+  const ex=p.ex.map((e,i)=>({exercicio:e[0],esquema:e[1],tipo:e[3]==="F"?"força":"hipertrofia",ultima:((store.get(logKey(d,i)).slice(-1)[0])||{}).sets||[]}));
+  return {treino:p.day,foco:p.sub,exercicios:ex};
+}
+function maybeCoach(d){
+  if(!PLAN.find(x=>x.id===d))return;
+  coachFill("coach-body-"+d,"resumo:"+d,"resumo",dayContext(d));
+}
+function refreshDay(d){delete aiCache["resumo:"+d];maybeCoach(d)}
+function maybeExCoach(ex){
+  const d=ex.dataset.d,i=ex.dataset.i;
+  if(i==="c"||i===undefined)return;
+  const p=PLAN.find(x=>x.id===d);if(!p)return;const e=p.ex[+i];if(!e)return;const forca=e[3]==="F";
   const ctx={
     exercicio:e[0],esquema:e[1],tipo:forca?"força":"hipertrofia",
     regra:forca
@@ -546,12 +610,7 @@ function exerciseCoach(d,i,btn){
       :"Hipertrofia (dupla progressão 8-15 reps): começa no piso da faixa, soma reps toda semana até bater o topo em todas as séries, aí sobe a carga e volta pro piso.",
     historico:store.get(logKey(d,i)).slice(-6).map(s=>({data:fmtDate(s.t),series:s.sets||[]}))
   };
-  aiRun("ai-"+d+"-"+i,btn,"progressao",ctx);
-}
-function dayBriefing(d,btn){
-  const p=PLAN.find(x=>x.id===d);
-  const ex=p.ex.map((e,i)=>({exercicio:e[0],esquema:e[1],tipo:e[3]==="F"?"força":"hipertrofia",ultima:((store.get(logKey(d,i)).slice(-1)[0])||{}).sets||[]}));
-  aiRun("brief-"+d,btn,"resumo",{treino:p.day,foco:p.sub,exercicios:ex});
+  coachFill("ai-"+d+"-"+i,"prog:"+d+":"+i,"progressao",ctx);
 }
 function saveExVal(id,val){cacheSet("exval:"+id,val)}
 function renderExVals(){EXAMS.forEach(g=>g.items.forEach(([id])=>{const el=document.getElementById("exval-"+id);if(el)el.value=cacheGet("exval:"+id,"")||""}))}
