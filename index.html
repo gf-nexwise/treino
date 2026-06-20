@@ -428,12 +428,6 @@ function buildViews(){
       </div>
       <div class="meta">Zera sozinho a cada dia.</div>
     </div>
-    <div class="rule">
-      <h3 class="C">Suplementos &amp; estudo</h3>
-      <p class="lead">Estudo do teu treino com sugestão de suplementos (água, creatina, proteína, cafeína…) — dose, timing e nível de evidência. Não inclui hormônio/remédio: isso é com médico.</p>
-      <button class="aibtn" onclick="suplementosStudy(this)">🤖 Montar meu estudo</button>
-      <div class="airesp" id="ai-supl"></div>
-    </div>
     <div class="rule"><h3>Exames pra fazer</h3><p class="lead">Toque pra marcar o que já fez.</p>`;
   EXAMS.forEach(g=>{
     sh+=`<div class="egroup">${g.g}</div>`;
@@ -569,7 +563,7 @@ async function aiAsk(task,context){
   if(!res.ok)throw new Error(data.error||("Erro "+res.status));
   return data.text;
 }
-// botão clássico (suplementos / exames)
+// botão clássico (interpretar exames)
 function aiRun(boxId,btn,task,context){
   const box=document.getElementById(boxId);
   const old=btn.textContent;btn.disabled=true;btn.textContent="Pensando…";
@@ -622,14 +616,6 @@ function interpretExams(btn){
   }));
   if(!labs.length){toast("Preencha o valor de pelo menos um exame primeiro.");return}
   aiRun("ai-exams",btn,"exames",{exames:labs});
-}
-function suplementosStudy(btn){
-  const dias=PLAN.map(p=>p.day+" ("+p.sub+")").join("; ");
-  aiRun("ai-supl",btn,"suplementos",{
-    objetivo:"powerbuilding — força + hipertrofia",
-    treino:{frequencia:PLAN.length+"x por semana",dias:dias,cardio:"bike leve nos dias de treino"},
-    agua:{meta_litros:4,hoje_litros:Number((waterGet()/1000).toFixed(1))}
-  });
 }
 
 // ---- auth flow ----
